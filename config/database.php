@@ -10,7 +10,7 @@ $dbConfig = [
     'host' => $isProduction ? 'localhost' : 'localhost',
     'database' => 'u937913451_stinkinpark',
     'username' => $isProduction ? 'u937913451_stinkin_user' : 'root',
-    'password' => $isProduction ? 'suburbund3@thM@tch' : ''
+    'password' => $isProduction ? 'D3vOp$2025' : ''
 ];
 
 // Initialize database
