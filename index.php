@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 
+require_once __DIR__ . '/config/app.php';
 require_once __DIR__ . '/config/database.php';
 require_once __DIR__ . '/includes/Station.php';
 
@@ -202,14 +203,14 @@ $stations = $station->getAll(true); // Get only active stations
         <header class="header">
             <h1 class="logo">Stinkin' Park</h1>
             <p class="tagline">🎵 Your Personal Music Universe 🎵</p>
-            <a href="/admin/upload.php" class="admin-link">📋 Admin Panel</a>
+            <a href="<?= BASE_URL ?>/admin/upload.php" class="admin-link">📋 Admin Panel</a>
         </header>
 
         <?php if (empty($stations)): ?>
         <div class="no-stations">
             <h2>🎸 No Stations Yet</h2>
             <p>Let's create your first music station!</p>
-            <a href="/admin/stations.php" class="create-btn">Create Station</a>
+            <a href="<?= BASE_URL ?>/admin/stations.php" class="create-btn">Create Station</a>
         </div>
         <?php else: ?>
         <div class="stations-grid">
@@ -218,7 +219,7 @@ $stations = $station->getAll(true); // Get only active stations
                 $songs = $station->getStationSongs($stationData['id']);
                 $songCount = count($songs);
             ?>
-            <a href="/stations/<?= htmlspecialchars($stationData['slug']) ?>" class="station-card">
+            <a href="<?= BASE_URL ?>/stations/<?= htmlspecialchars($stationData['slug']) ?>" class="station-card">
                 <div class="station-header">
                     <h2 class="station-name"><?= htmlspecialchars($stationData['name']) ?></h2>
                     <?php if ($stationData['description']): ?>

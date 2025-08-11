@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 
+require_once __DIR__ . '/../config/app.php';
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/Station.php';
 
@@ -8,11 +9,15 @@ use StinkinPark\Station;
 
 // Get station from URL path
 $requestUri = $_SERVER['REQUEST_URI'];
+$basePath = parse_url(BASE_URL, PHP_URL_PATH);
+if (substr($requestUri, 0, strlen($basePath)) == $basePath) {
+    $requestUri = substr($requestUri, strlen($basePath));
+}
 $pathParts = explode('/', trim($requestUri, '/'));
 $slug = end($pathParts);
 
 if (empty($slug) || $slug === 'stations') {
-    header('Location: /');
+    header('Location: ' . BASE_URL . '/');
     exit;
 }
 
@@ -23,7 +28,7 @@ if (!$stationData) {
     header('HTTP/1.0 404 Not Found');
     echo "<h1>Station not found</h1>";
     echo "<p>The station '$slug' does not exist.</p>";
-    echo "<a href='/'>Return to stations</a>";
+    echo "<a href='" . BASE_URL . "/'>Return to stations</a>";
     exit;
 }
 
@@ -350,7 +355,7 @@ $songCount = count($songs);
 <body>
     <!-- Navigation -->
     <nav class="nav-header">
-        <a href="/">← Back to Stations</a>
+        <a href="<?= BASE_URL ?>/">← Back to Stations</a>
     </nav>
 
     <!-- Background Media -->
@@ -358,10 +363,10 @@ $songCount = count($songs);
     <div class="background-media">
         <?php if ($stationData['background_video']): ?>
             <video autoplay muted loop playsinline>
-                <source src="/assets/media/<?= htmlspecialchars($stationData['background_video']) ?>" type="video/mp4">
+                <source src="<?= BASE_URL ?>/assets/media/<?= htmlspecialchars($stationData['background_video']) ?>" type="video/mp4">
             </video>
         <?php elseif ($stationData['background_image']): ?>
-            <img src="/assets/media/<?= htmlspecialchars($stationData['background_image']) ?>" alt="">
+            <img src="<?= BASE_URL ?>/assets/media/<?= htmlspecialchars($stationData['background_image']) ?>" alt="">
         <?php endif; ?>
     </div>
     <?php endif; ?>
@@ -422,6 +427,8 @@ $songCount = count($songs);
     </div>
 
     <script>
+        const BASE_URL = '<?= BASE_URL ?>';
+
         class StationPlayer {
             constructor() {
                 this.audio = document.getElementById('audio-player');
@@ -495,7 +502,7 @@ $songCount = count($songs);
                 try {
                     this.showStatus('Loading station...', 'loading');
                     
-                    const response = await fetch(`/api/station.php?slug=${this.stationSlug}`);
+                    const response = await fetch(`${BASE_URL}/api/station.php?slug=${this.stationSlug}`);
                     if (!response.ok) {
                         throw new Error(`HTTP error! status: ${response.status}`);
                     }
@@ -585,7 +592,7 @@ $songCount = count($songs);
                 this.currentIndex = index;
                 
                 // Update audio source
-                const audioUrl = `/audio/${encodeURIComponent(song.filename)}`;
+                const audioUrl = `${BASE_URL}/audio/${encodeURIComponent(song.filename)}`;
                 console.log('Loading song:', song.title, 'from', audioUrl);
                 this.audio.src = audioUrl;
                 
