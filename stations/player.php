@@ -6,10 +6,13 @@ require_once __DIR__ . '/../includes/Station.php';
 
 use StinkinPark\Station;
 
-// Get station from URL
-$slug = basename($_SERVER['REQUEST_URI']);
+// Get station from URL path
+$requestUri = $_SERVER['REQUEST_URI'];
+$pathParts = explode('/', trim($requestUri, '/'));
+$slug = end($pathParts);
+
 if (empty($slug) || $slug === 'stations') {
-    header('Location: ' . BASE_URL . '/stations'); // Redirect if no specific station is requested
+    header('Location: /');
     exit;
 }
 
@@ -18,9 +21,15 @@ $stationData = $station->getBySlug($slug);
 
 if (!$stationData) {
     header('HTTP/1.0 404 Not Found');
-    echo "Station not found";
+    echo "<h1>Station not found</h1>";
+    echo "<p>The station '$slug' does not exist.</p>";
+    echo "<a href='/'>Return to stations</a>";
     exit;
 }
+
+// Get initial song count for this station
+$songs = $station->getStationSongs($stationData['id']);
+$songCount = count($songs);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -38,13 +47,12 @@ if (!$stationData) {
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             min-height: 100vh;
-            background: #000;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
             color: white;
             display: flex;
-            flex-direction: column;
             align-items: center;
             justify-content: center;
-            overflow: hidden;
+            padding: 20px;
         }
         
         /* Background Media */
@@ -62,19 +70,47 @@ if (!$stationData) {
             width: 100%;
             height: 100%;
             object-fit: cover;
-            opacity: 0.4;
+            opacity: 0.3;
+            filter: blur(5px);
+        }
+        
+        /* Navigation */
+        .nav-header {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            padding: 20px;
+            background: rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(10px);
+            z-index: 100;
+        }
+        
+        .nav-header a {
+            color: white;
+            text-decoration: none;
+            font-weight: 500;
+            padding: 8px 16px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 20px;
+            transition: all 0.3s;
+        }
+        
+        .nav-header a:hover {
+            background: rgba(255, 255, 255, 0.2);
         }
         
         /* Player Container */
         .player-container {
-            background: rgba(0, 0, 0, 0.8);
+            background: rgba(0, 0, 0, 0.7);
             backdrop-filter: blur(20px);
             border-radius: 20px;
             padding: 40px;
-            max-width: 500px;
-            width: 90%;
+            max-width: 600px;
+            width: 100%;
             box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
             border: 1px solid rgba(255, 255, 255, 0.1);
+            margin-top: 60px;
         }
         
         .station-header {
@@ -94,6 +130,12 @@ if (!$stationData) {
         .station-description {
             color: rgba(255, 255, 255, 0.7);
             font-size: 14px;
+            margin-bottom: 10px;
+        }
+        
+        .station-stats {
+            font-size: 12px;
+            color: rgba(255, 255, 255, 0.5);
         }
         
         /* Now Playing */
@@ -118,6 +160,7 @@ if (!$stationData) {
             font-weight: 600;
             color: white;
             margin-bottom: 5px;
+            min-height: 28px;
         }
         
         .song-artist {
@@ -125,33 +168,11 @@ if (!$stationData) {
             font-size: 14px;
         }
         
-        /* Progress Bar */
-        .progress-container {
-            margin-bottom: 20px;
-        }
-        
-        .progress-bar {
+        /* Audio Element - Visible for debugging */
+        #audio-player {
             width: 100%;
-            height: 4px;
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 2px;
-            overflow: hidden;
-            cursor: pointer;
-        }
-        
-        .progress-fill {
-            height: 100%;
-            background: linear-gradient(90deg, #667eea, #764ba2);
-            width: 0%;
-            transition: width 0.1s;
-        }
-        
-        .time-display {
-            display: flex;
-            justify-content: space-between;
-            margin-top: 8px;
-            font-size: 12px;
-            color: rgba(255, 255, 255, 0.5);
+            margin-bottom: 20px;
+            border-radius: 8px;
         }
         
         /* Controls */
@@ -164,12 +185,12 @@ if (!$stationData) {
         }
         
         .control-btn {
-            background: none;
-            border: none;
+            background: rgba(255, 255, 255, 0.1);
+            border: 2px solid rgba(255, 255, 255, 0.2);
             color: white;
             cursor: pointer;
             transition: all 0.3s;
-            padding: 10px;
+            padding: 12px;
             border-radius: 50%;
             display: flex;
             align-items: center;
@@ -177,13 +198,15 @@ if (!$stationData) {
         }
         
         .control-btn:hover {
-            background: rgba(255, 255, 255, 0.1);
+            background: rgba(255, 255, 255, 0.2);
+            transform: scale(1.1);
         }
         
         .control-btn.main {
             width: 60px;
             height: 60px;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: none;
             box-shadow: 0 4px 20px rgba(102, 126, 234, 0.4);
         }
         
@@ -191,46 +214,55 @@ if (!$stationData) {
             transform: scale(1.05);
         }
         
-        /* Volume Control */
-        .volume-control {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-        
-        .volume-slider {
-            width: 100px;
-            -webkit-appearance: none;
-            appearance: none;
-            height: 4px;
-            background: rgba(255, 255, 255, 0.2);
-            border-radius: 2px;
-            outline: none;
-        }
-        
-        .volume-slider::-webkit-slider-thumb {
-            -webkit-appearance: none;
-            appearance: none;
-            width: 14px;
-            height: 14px;
-            background: white;
-            border-radius: 50%;
-            cursor: pointer;
+        .control-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
         }
         
         /* Playlist */
         .playlist {
-            max-height: 200px;
+            max-height: 300px;
             overflow-y: auto;
             border-top: 1px solid rgba(255, 255, 255, 0.1);
             padding-top: 20px;
         }
         
+        .playlist-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            padding: 0 10px;
+        }
+        
+        .playlist-title {
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: rgba(255, 255, 255, 0.5);
+        }
+        
+        .shuffle-btn {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: rgba(255, 255, 255, 0.7);
+            padding: 5px 12px;
+            border-radius: 15px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .shuffle-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+        }
+        
         .playlist-item {
-            padding: 10px;
+            padding: 12px;
             border-radius: 8px;
             cursor: pointer;
-            transition: background 0.3s;
+            transition: all 0.3s;
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -242,16 +274,45 @@ if (!$stationData) {
         
         .playlist-item.active {
             background: rgba(102, 126, 234, 0.2);
+            border-left: 3px solid #667eea;
+        }
+        
+        .playlist-item-number {
+            color: rgba(255, 255, 255, 0.4);
+            font-size: 12px;
+            margin-right: 10px;
+            min-width: 20px;
         }
         
         .playlist-item-title {
             color: rgba(255, 255, 255, 0.8);
             font-size: 14px;
+            flex: 1;
         }
         
-        .playlist-item-duration {
-            color: rgba(255, 255, 255, 0.4);
-            font-size: 12px;
+        .playlist-item.active .playlist-item-title {
+            color: white;
+            font-weight: 600;
+        }
+        
+        /* Status Messages */
+        .status-message {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            padding: 10px;
+            margin-bottom: 20px;
+            text-align: center;
+            font-size: 14px;
+        }
+        
+        .status-message.error {
+            background: rgba(255, 0, 0, 0.2);
+            border: 1px solid rgba(255, 0, 0, 0.3);
+        }
+        
+        .status-message.loading {
+            background: rgba(102, 126, 234, 0.2);
+            border: 1px solid rgba(102, 126, 234, 0.3);
         }
         
         /* Loading State */
@@ -287,16 +348,23 @@ if (!$stationData) {
     </style>
 </head>
 <body>
+    <!-- Navigation -->
+    <nav class="nav-header">
+        <a href="/">← Back to Stations</a>
+    </nav>
+
     <!-- Background Media -->
+    <?php if ($stationData['background_video'] || $stationData['background_image']): ?>
     <div class="background-media">
         <?php if ($stationData['background_video']): ?>
             <video autoplay muted loop playsinline>
-                <source src="<?= BASE_URL ?>/assets/media/<?= htmlspecialchars($stationData['background_video']) ?>" type="video/mp4">
+                <source src="/assets/media/<?= htmlspecialchars($stationData['background_video']) ?>" type="video/mp4">
             </video>
         <?php elseif ($stationData['background_image']): ?>
-            <img src="<?= BASE_URL ?>/assets/media/<?= htmlspecialchars($stationData['background_image']) ?>" alt="">
+            <img src="/assets/media/<?= htmlspecialchars($stationData['background_image']) ?>" alt="">
         <?php endif; ?>
     </div>
+    <?php endif; ?>
 
     <!-- Player -->
     <div class="player-container">
@@ -305,32 +373,28 @@ if (!$stationData) {
             <?php if ($stationData['description']): ?>
             <p class="station-description"><?= htmlspecialchars($stationData['description']) ?></p>
             <?php endif; ?>
+            <p class="station-stats">Station has <?= $songCount ?> songs</p>
         </div>
+
+        <div id="status-container"></div>
 
         <div class="now-playing">
             <div class="now-playing-label">Now Playing</div>
-            <div class="song-title" id="song-title">Loading...</div>
+            <div class="song-title" id="song-title">Loading station...</div>
             <div class="song-artist">Stinkin' Park</div>
         </div>
 
-        <div class="progress-container">
-            <div class="progress-bar" id="progress-bar">
-                <div class="progress-fill" id="progress-fill"></div>
-            </div>
-            <div class="time-display">
-                <span id="current-time">0:00</span>
-                <span id="total-time">0:00</span>
-            </div>
-        </div>
+        <!-- HTML5 Audio Element (visible for debugging) -->
+        <audio id="audio-player" controls preload="metadata"></audio>
 
         <div class="controls">
-            <button class="control-btn" id="prev-btn" title="Previous">
+            <button class="control-btn" id="prev-btn" title="Previous" disabled>
                 <svg width="24" height="24" fill="currentColor" viewBox="0 0 24 24">
                     <path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/>
                 </svg>
             </button>
             
-            <button class="control-btn main" id="play-btn" title="Play/Pause">
+            <button class="control-btn main" id="play-btn" title="Play/Pause" disabled>
                 <svg width="30" height="30" fill="currentColor" viewBox="0 0 24 24" id="play-icon">
                     <path d="M8 5v14l11-7z"/>
                 </svg>
@@ -339,27 +403,23 @@ if (!$stationData) {
                 </svg>
             </button>
             
-            <button class="control-btn" id="next-btn" title="Next">
+            <button class="control-btn" id="next-btn" title="Next" disabled>
                 <svg width="24" height="24" fill="currentColor" viewBox="0 0 24 24">
                     <path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/>
                 </svg>
             </button>
         </div>
 
-        <div class="volume-control">
-            <svg width="20" height="20" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>
-            </svg>
-            <input type="range" class="volume-slider" id="volume-slider" min="0" max="100" value="70">
-        </div>
-
         <div class="playlist" id="playlist">
-            <div class="loading">Loading playlist...</div>
+            <div class="playlist-header">
+                <span class="playlist-title">Playlist</span>
+                <button class="shuffle-btn" id="shuffle-btn">🔀 Shuffle</button>
+            </div>
+            <div id="playlist-content">
+                <div class="loading">Loading playlist...</div>
+            </div>
         </div>
     </div>
-
-    <!-- Audio Element -->
-    <audio id="audio-player" preload="metadata"></audio>
 
     <script>
         class StationPlayer {
@@ -368,69 +428,129 @@ if (!$stationData) {
                 this.stationSlug = '<?= $slug ?>';
                 this.playlist = [];
                 this.currentIndex = 0;
-                this.isPlaying = false;
+                
+                // Bind controls
+                this.playBtn = document.getElementById('play-btn');
+                this.prevBtn = document.getElementById('prev-btn');
+                this.nextBtn = document.getElementById('next-btn');
+                this.shuffleBtn = document.getElementById('shuffle-btn');
                 
                 this.initializeControls();
                 this.loadStation();
             }
             
+            showStatus(message, type = 'info') {
+                const container = document.getElementById('status-container');
+                container.innerHTML = `<div class="status-message ${type}">${message}</div>`;
+                if (type !== 'error') {
+                    setTimeout(() => {
+                        container.innerHTML = '';
+                    }, 3000);
+                }
+            }
+            
             initializeControls() {
-                // Play/Pause
-                document.getElementById('play-btn').addEventListener('click', () => this.togglePlay());
-                
-                // Next/Previous
-                document.getElementById('next-btn').addEventListener('click', () => this.playNext());
-                document.getElementById('prev-btn').addEventListener('click', () => this.playPrevious());
-                
-                // Volume
-                const volumeSlider = document.getElementById('volume-slider');
-                volumeSlider.addEventListener('input', (e) => {
-                    this.audio.volume = e.target.value / 100;
+                // Play/Pause button
+                this.playBtn.addEventListener('click', () => {
+                    if (this.audio.paused) {
+                        this.audio.play();
+                    } else {
+                        this.audio.pause();
+                    }
                 });
                 
-                // Progress bar click
-                document.getElementById('progress-bar').addEventListener('click', (e) => {
-                    const rect = e.currentTarget.getBoundingClientRect();
-                    const percent = (e.clientX - rect.left) / rect.width;
-                    this.audio.currentTime = percent * this.audio.duration;
+                // Update UI when audio plays/pauses
+                this.audio.addEventListener('play', () => {
+                    document.getElementById('play-icon').style.display = 'none';
+                    document.getElementById('pause-icon').style.display = 'block';
                 });
                 
-                // Audio events
-                this.audio.addEventListener('timeupdate', () => this.updateProgress());
+                this.audio.addEventListener('pause', () => {
+                    document.getElementById('play-icon').style.display = 'block';
+                    document.getElementById('pause-icon').style.display = 'none';
+                });
+                
+                // Next/Previous buttons
+                this.nextBtn.addEventListener('click', () => this.playNext());
+                this.prevBtn.addEventListener('click', () => this.playPrevious());
+                
+                // Shuffle button
+                this.shuffleBtn.addEventListener('click', () => {
+                    this.shufflePlaylist();
+                    this.showStatus('Playlist shuffled!', 'info');
+                });
+                
+                // Auto-play next song when current ends
                 this.audio.addEventListener('ended', () => this.playNext());
-                this.audio.addEventListener('loadedmetadata', () => this.updateTimeDisplay());
+                
+                // Handle audio errors
+                this.audio.addEventListener('error', (e) => {
+                    console.error('Audio error:', e);
+                    this.showStatus('Error loading audio file. Skipping to next track...', 'error');
+                    setTimeout(() => this.playNext(), 2000);
+                });
             }
             
             async loadStation() {
                 try {
-                    const response = await fetch(`<?= BASE_URL ?>/api/station.php?slug=${this.stationSlug}`);
+                    this.showStatus('Loading station...', 'loading');
+                    
+                    const response = await fetch(`/api/station.php?slug=${this.stationSlug}`);
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    
                     const data = await response.json();
+                    
+                    if (!data.songs || data.songs.length === 0) {
+                        this.showStatus('No songs found for this station', 'error');
+                        document.getElementById('playlist-content').innerHTML = 
+                            '<div class="loading">No songs available</div>';
+                        return;
+                    }
                     
                     this.playlist = data.songs;
                     this.shufflePlaylist();
                     this.renderPlaylist();
                     
-                    if (this.playlist.length > 0) {
-                        this.loadSong(0);
-                        // Auto-play on load
-                        setTimeout(() => this.play(), 500);
-                    }
+                    // Load first song
+                    this.loadSong(0);
+                    
+                    // Enable controls
+                    this.playBtn.disabled = false;
+                    this.nextBtn.disabled = false;
+                    this.prevBtn.disabled = false;
+                    
+                    // Auto-play after short delay
+                    setTimeout(() => {
+                        this.audio.play().catch(e => {
+                            console.log('Auto-play prevented by browser:', e);
+                            this.showStatus('Click play to start', 'info');
+                        });
+                    }, 500);
+                    
                 } catch (error) {
                     console.error('Failed to load station:', error);
-                    document.getElementById('playlist').innerHTML = 
+                    this.showStatus('Failed to load station: ' + error.message, 'error');
+                    document.getElementById('playlist-content').innerHTML = 
                         '<div class="loading">Failed to load playlist</div>';
                 }
             }
             
             shufflePlaylist() {
+                // Fisher-Yates shuffle
                 for (let i = this.playlist.length - 1; i > 0; i--) {
                     const j = Math.floor(Math.random() * (i + 1));
                     [this.playlist[i], this.playlist[j]] = [this.playlist[j], this.playlist[i]];
                 }
+                this.renderPlaylist();
+                if (this.playlist.length > 0) {
+                    this.loadSong(0);
+                }
             }
             
             renderPlaylist() {
-                const container = document.getElementById('playlist');
+                const container = document.getElementById('playlist-content');
                 
                 if (this.playlist.length === 0) {
                     container.innerHTML = '<div class="loading">No songs available</div>';
@@ -438,98 +558,37 @@ if (!$stationData) {
                 }
                 
                 container.innerHTML = this.playlist.map((song, index) => `
-                    <div class="playlist-item ${index === 0 ? 'active' : ''}" 
+                    <div class="playlist-item ${index === this.currentIndex ? 'active' : ''}" 
                          data-index="${index}">
+                        <span class="playlist-item-number">${index + 1}</span>
                         <span class="playlist-item-title">${this.escapeHtml(song.title)}</span>
-                        <span class="playlist-item-duration">
-                        </span>
                     </div>
                 `).join('');
                 
-                // Add click handlers
+                // Add click handlers to playlist items
                 container.querySelectorAll('.playlist-item').forEach(item => {
                     item.addEventListener('click', () => {
-                        this.play();
+                        const index = parseInt(item.dataset.index);
+                        this.loadSong(index);
+                        this.audio.play();
                     });
                 });
             }
             
             loadSong(index) {
-                const song = this.playlist[index];
-                if (!song) return;
+                if (index < 0 || index >= this.playlist.length) {
+                    console.error('Invalid song index:', index);
+                    return;
+                }
                 
+                const song = this.playlist[index];
                 this.currentIndex = index;
-                this.audio.src = `<?= BASE_URL ?>/audio/${encodeURIComponent(song.filename)}`;
+                
+                // Update audio source
+                const audioUrl = `/audio/${encodeURIComponent(song.filename)}`;
+                console.log('Loading song:', song.title, 'from', audioUrl);
+                this.audio.src = audioUrl;
                 
                 // Update UI
                 document.getElementById('song-title').textContent = song.title;
                 
-                // Update playlist active state
-                document.querySelectorAll('.playlist-item').forEach((item, i) => {
-                    item.classList.toggle('active', i === index);
-                });
-            }
-            
-            togglePlay() {
-                if (this.isPlaying) {
-                    this.pause();
-                } else {
-                    this.play();
-                }
-            }
-            
-            play() {
-                this.audio.play();
-                this.isPlaying = true;
-                document.getElementById('play-icon').style.display = 'none';
-                document.getElementById('pause-icon').style.display = 'block';
-            }
-            
-            pause() {
-                this.audio.pause();
-                this.isPlaying = false;
-                document.getElementById('play-icon').style.display = 'block';
-                document.getElementById('pause-icon').style.display = 'none';
-            }
-            
-            playNext() {
-                this.currentIndex = (this.currentIndex + 1) % this.playlist.length;
-                this.loadSong(this.currentIndex);
-                if (this.isPlaying) this.play();
-            }
-            
-            playPrevious() {
-                this.currentIndex = this.currentIndex === 0 ? 
-                    this.playlist.length - 1 : this.currentIndex - 1;
-                this.loadSong(this.currentIndex);
-                if (this.isPlaying) this.play();
-            }
-            
-            updateProgress() {
-                const percent = (this.audio.currentTime / this.audio.duration) * 100;
-                document.getElementById('progress-fill').style.width = percent + '%';
-                
-                document.getElementById('current-time').textContent = 
-                    this.formatTime(this.audio.currentTime);
-                document.getElementById('total-time').textContent = 
-                    this.formatTime(this.audio.duration);
-            }
-            
-            formatTime(seconds) {
-                const minutes = Math.floor(seconds / 60);
-                const remainingSeconds = Math.floor(seconds % 60);
-                return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
-            }
-            
-            escapeHtml(text) {
-                const div = document.createElement('div');
-                div.textContent = text;
-                return div.innerHTML;
-            }
-        }
-        
-        // Initialize player
-        const player = new StationPlayer();
-    </script>
-</body>
-</html>
