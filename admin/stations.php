@@ -359,7 +359,7 @@ $stations = $station->getAll(false);
                             <p>Status: <?= $stationItem['active'] ? '🟢 Active' : '🔴 Inactive' ?></p>
                         </div>
                         <div class="station-actions">
-                            <a href="/stations/<?= $stationItem['slug'] ?>" 
+                            <a href="<?= BASE_URL ?>/stations/<?= $stationItem['slug'] ?>"
                                class="btn btn-secondary btn-small" 
                                target="_blank">View</a>
                             <a href="edit-station.php?id=<?= $stationItem['id'] ?>" 

@@ -266,7 +266,7 @@ $totalSongs = $song->getTotalCount();
                         </td>
                         <td>
                             <div class="actions">
-                                <a href="/audio/<?= $songItem['filename'] ?>" 
+                                <a href="<?= BASE_URL ?>/audio/<?= $songItem['filename'] ?>"
                                    class="btn-small btn-play" 
                                    target="_blank">▶</a>
                                 <a href="edit.php?id=<?= $songItem['id'] ?>" 
