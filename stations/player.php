@@ -9,7 +9,7 @@ use StinkinPark\Station;
 // Get station from URL
 $slug = basename($_SERVER['REQUEST_URI']);
 if (empty($slug) || $slug === 'stations') {
-    header('Location: /stations'); // Redirect if no specific station is requested
+    header('Location: ' . BASE_URL . '/stations'); // Redirect if no specific station is requested
     exit;
 }
 
@@ -291,10 +291,10 @@ if (!$stationData) {
     <div class="background-media">
         <?php if ($stationData['background_video']): ?>
             <video autoplay muted loop playsinline>
-                <source src="/assets/media/<?= htmlspecialchars($stationData['background_video']) ?>" type="video/mp4">
+                <source src="<?= BASE_URL ?>/assets/media/<?= htmlspecialchars($stationData['background_video']) ?>" type="video/mp4">
             </video>
         <?php elseif ($stationData['background_image']): ?>
-            <img src="/assets/media/<?= htmlspecialchars($stationData['background_image']) ?>" alt="">
+            <img src="<?= BASE_URL ?>/assets/media/<?= htmlspecialchars($stationData['background_image']) ?>" alt="">
         <?php endif; ?>
     </div>
 
@@ -403,7 +403,7 @@ if (!$stationData) {
             
             async loadStation() {
                 try {
-                    const response = await fetch(`/api/station.php?slug=${this.stationSlug}`);
+                    const response = await fetch(`<?= BASE_URL ?>/api/station.php?slug=${this.stationSlug}`);
                     const data = await response.json();
                     
                     this.playlist = data.songs;
@@ -459,7 +459,7 @@ if (!$stationData) {
                 if (!song) return;
                 
                 this.currentIndex = index;
-                this.audio.src = `/audio/${encodeURIComponent(song.filename)}`;
+                this.audio.src = `<?= BASE_URL ?>/audio/${encodeURIComponent(song.filename)}`;
                 
                 // Update UI
                 document.getElementById('song-title').textContent = song.title;

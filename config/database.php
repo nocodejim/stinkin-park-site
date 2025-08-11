@@ -13,6 +13,9 @@ $dbConfig = [
     'password' => $isProduction ? 'D3vOp$2025' : ''
 ];
 
+// Base URL
+require_once __DIR__ . '/app.php';
+
 // Initialize database
 require_once __DIR__ . '/../includes/Database.php';
 \StinkinPark\Database::init($dbConfig);
