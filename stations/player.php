@@ -413,4 +413,266 @@ $logger->info("Initial songs loaded", ['count' => $songCount], 'PLAYER');
                 height: 50px;
             }
         }
-        
+    </style>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="nav-header">
+        <a href="<?= BASE_URL ?>/">← Back to Stations</a>
+    </nav>
+
+    <!-- Background Media -->
+    <?php if ($stationData['background_video'] || $stationData['background_image']): ?>
+    <div class="background-media">
+        <?php if ($stationData['background_video']): ?>
+            <video autoplay muted loop playsinline>
+                <source src="<?= BASE_URL ?>/assets/media/<?= htmlspecialchars($stationData['background_video']) ?>" type="video/mp4">
+            </video>
+        <?php elseif ($stationData['background_image']): ?>
+            <img src="<?= BASE_URL ?>/assets/media/<?= htmlspecialchars($stationData['background_image']) ?>" alt="">
+        <?php endif; ?>
+    </div>
+    <?php endif; ?>
+
+    <!-- Player -->
+    <div class="player-container">
+        <div class="station-header">
+            <h1 class="station-name"><?= htmlspecialchars($stationData['name']) ?></h1>
+            <?php if ($stationData['description']): ?>
+            <p class="station-description"><?= htmlspecialchars($stationData['description']) ?></p>
+            <?php endif; ?>
+            <p class="station-stats">Station has <?= $songCount ?> songs</p>
+        </div>
+
+        <div id="status-container"></div>
+
+        <div class="now-playing">
+            <div class="now-playing-label">Now Playing</div>
+            <div class="song-title" id="song-title">Loading station...</div>
+            <div class="song-artist">Stinkin' Park</div>
+        </div>
+
+        <!-- HTML5 Audio Element (visible for debugging) -->
+        <audio id="audio-player" controls preload="metadata"></audio>
+
+        <div class="controls">
+            <button class="control-btn" id="prev-btn" title="Previous" disabled>
+                <svg width="24" height="24" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/>
+                </svg>
+            </button>
+            
+            <button class="control-btn main" id="play-btn" title="Play/Pause" disabled>
+                <svg width="30" height="30" fill="currentColor" viewBox="0 0 24 24" id="play-icon">
+                    <path d="M8 5v14l11-7z"/>
+                </svg>
+                <svg width="30" height="30" fill="currentColor" viewBox="0 0 24 24" id="pause-icon" style="display:none;">
+                    <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>
+                </svg>
+            </button>
+            
+            <button class="control-btn" id="next-btn" title="Next" disabled>
+                <svg width="24" height="24" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/>
+                </svg>
+            </button>
+        </div>
+
+        <div class="playlist" id="playlist">
+            <div class="playlist-header">
+                <span class="playlist-title">Playlist</span>
+                <button class="shuffle-btn" id="shuffle-btn">🔀 Shuffle</button>
+            </div>
+            <div id="playlist-content">
+                <div class="loading">Loading playlist...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const BASE_URL = '<?= BASE_URL ?>';
+
+        class StationPlayer {
+            constructor() {
+                this.audio = document.getElementById('audio-player');
+                this.stationSlug = '<?= $slug ?>';
+                this.playlist = [];
+                this.currentIndex = 0;
+                
+                // Bind controls
+                this.playBtn = document.getElementById('play-btn');
+                this.prevBtn = document.getElementById('prev-btn');
+                this.nextBtn = document.getElementById('next-btn');
+                this.shuffleBtn = document.getElementById('shuffle-btn');
+                
+                this.initializeControls();
+                this.loadStation();
+            }
+            
+            showStatus(message, type = 'info') {
+                const container = document.getElementById('status-container');
+                container.innerHTML = `<div class="status-message ${type}">${message}</div>`;
+                if (type !== 'error') {
+                    setTimeout(() => {
+                        container.innerHTML = '';
+                    }, 3000);
+                }
+            }
+            
+            initializeControls() {
+                // Play/Pause button
+                this.playBtn.addEventListener('click', () => {
+                    if (this.audio.paused) {
+                        this.audio.play();
+                    } else {
+                        this.audio.pause();
+                    }
+                });
+                
+                // Update UI when audio plays/pauses
+                this.audio.addEventListener('play', () => {
+                    document.getElementById('play-icon').style.display = 'none';
+                    document.getElementById('pause-icon').style.display = 'block';
+                });
+                
+                this.audio.addEventListener('pause', () => {
+                    document.getElementById('play-icon').style.display = 'block';
+                    document.getElementById('pause-icon').style.display = 'none';
+                });
+                
+                // Next/Previous buttons
+                this.nextBtn.addEventListener('click', () => this.playNext());
+                this.prevBtn.addEventListener('click', () => this.playPrevious());
+                
+                // Shuffle button
+                this.shuffleBtn.addEventListener('click', () => {
+                    this.shufflePlaylist();
+                    this.showStatus('Playlist shuffled!', 'info');
+                });
+                
+                // Auto-play next song when current ends
+                this.audio.addEventListener('ended', () => this.playNext());
+                
+                // Handle audio errors
+                this.audio.addEventListener('error', (e) => {
+                    console.error('Audio error:', e);
+                    this.showStatus('Error loading audio file. Skipping to next track...', 'error');
+                    setTimeout(() => this.playNext(), 2000);
+                });
+            }
+            
+            async loadStation() {
+                console.log('PLAYER: Starting station load for slug:', this.stationSlug);
+                try {
+                    this.showStatus('Loading station...', 'loading');
+                    
+                    console.log('PLAYER: Fetching data from API...');
+                    const response = await fetch(`${BASE_URL}/api/station.php?slug=${this.stationSlug}`);
+                    console.log('PLAYER: API response received:', response);
+
+                    if (!response.ok) {
+                        const errorText = await response.text();
+                        console.error('PLAYER: API response not OK.', response.status, errorText);
+                        throw new Error(`HTTP error! status: ${response.status}, body: ${errorText}`);
+                    }
+                    
+                    const data = await response.json();
+                    console.log('PLAYER: Parsed JSON data:', data);
+
+                    if (data.debug) {
+                        console.log('--- BEGIN BACKEND DEBUG ---');
+                        data.debug.forEach(msg => console.log(msg));
+                        console.log('--- END BACKEND DEBUG ---');
+                    }
+                    
+                    if (!data.songs || data.songs.length === 0) {
+                        this.showStatus('No songs found for this station', 'error');
+                        document.getElementById('playlist-content').innerHTML = 
+                            '<div class="loading">No songs available</div>';
+                        return;
+                    }
+                    
+                    this.playlist = data.songs;
+                    this.shufflePlaylist();
+                    this.renderPlaylist();
+                    
+                    // Load first song
+                    this.loadSong(0);
+                    console.log('PLAYER: First song loaded.');
+                    
+                    // Enable controls
+                    this.playBtn.disabled = false;
+                    this.nextBtn.disabled = false;
+                    this.prevBtn.disabled = false;
+                    
+                    // Auto-play after short delay
+                    setTimeout(() => {
+                        this.audio.play().catch(e => {
+                            console.log('Auto-play prevented by browser:', e);
+                            this.showStatus('Click play to start', 'info');
+                        });
+                    }, 500);
+                    
+                } catch (error) {
+                    console.error('PLAYER: Failed to load station. Full error object:', error);
+                    this.showStatus('Failed to load station: ' + error.message, 'error');
+                    document.getElementById('playlist-content').innerHTML = 
+                        '<div class="loading">Failed to load playlist</div>';
+                }
+            }
+            
+            shufflePlaylist() {
+                // Fisher-Yates shuffle
+                for (let i = this.playlist.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [this.playlist[i], this.playlist[j]] = [this.playlist[j], this.playlist[i]];
+                }
+                this.renderPlaylist();
+                if (this.playlist.length > 0) {
+                    this.loadSong(0);
+                }
+            }
+            
+            renderPlaylist() {
+                const container = document.getElementById('playlist-content');
+                
+                if (this.playlist.length === 0) {
+                    container.innerHTML = '<div class="loading">No songs available</div>';
+                    return;
+                }
+                
+                container.innerHTML = this.playlist.map((song, index) => `
+                    <div class="playlist-item ${index === this.currentIndex ? 'active' : ''}" 
+                         data-index="${index}">
+                        <span class="playlist-item-number">${index + 1}</span>
+                        <span class="playlist-item-title">${this.escapeHtml(song.title)}</span>
+                    </div>
+                `).join('');
+                
+                // Add click handlers to playlist items
+                container.querySelectorAll('.playlist-item').forEach(item => {
+                    item.addEventListener('click', () => {
+                        const index = parseInt(item.dataset.index);
+                        this.loadSong(index);
+                        this.audio.play();
+                    });
+                });
+            }
+            
+            loadSong(index) {
+                if (index < 0 || index >= this.playlist.length) {
+                    console.error('Invalid song index:', index);
+                    return;
+                }
+                
+                const song = this.playlist[index];
+                this.currentIndex = index;
+                
+                // Update audio source
+                const audioUrl = `${BASE_URL}/audio/${encodeURIComponent(song.filename)}`;
+                console.log('Loading song:', song.title, 'from', audioUrl);
+                this.audio.src = audioUrl;
+                
+                // Update UI
+                document.getElementById('song-title').textContent = song.title;
+                
