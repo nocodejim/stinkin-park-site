@@ -499,15 +499,28 @@ $songCount = count($songs);
             }
             
             async loadStation() {
+                console.log('PLAYER: Starting station load for slug:', this.stationSlug);
                 try {
                     this.showStatus('Loading station...', 'loading');
                     
+                    console.log('PLAYER: Fetching data from API...');
                     const response = await fetch(`${BASE_URL}/api/station.php?slug=${this.stationSlug}`);
+                    console.log('PLAYER: API response received:', response);
+
                     if (!response.ok) {
-                        throw new Error(`HTTP error! status: ${response.status}`);
+                        const errorText = await response.text();
+                        console.error('PLAYER: API response not OK.', response.status, errorText);
+                        throw new Error(`HTTP error! status: ${response.status}, body: ${errorText}`);
                     }
                     
                     const data = await response.json();
+                    console.log('PLAYER: Parsed JSON data:', data);
+
+                    if (data.debug) {
+                        console.log('--- BEGIN BACKEND DEBUG ---');
+                        data.debug.forEach(msg => console.log(msg));
+                        console.log('--- END BACKEND DEBUG ---');
+                    }
                     
                     if (!data.songs || data.songs.length === 0) {
                         this.showStatus('No songs found for this station', 'error');
@@ -522,6 +535,7 @@ $songCount = count($songs);
                     
                     // Load first song
                     this.loadSong(0);
+                    console.log('PLAYER: First song loaded.');
                     
                     // Enable controls
                     this.playBtn.disabled = false;
@@ -537,7 +551,7 @@ $songCount = count($songs);
                     }, 500);
                     
                 } catch (error) {
-                    console.error('Failed to load station:', error);
+                    console.error('PLAYER: Failed to load station. Full error object:', error);
                     this.showStatus('Failed to load station: ' + error.message, 'error');
                     document.getElementById('playlist-content').innerHTML = 
                         '<div class="loading">Failed to load playlist</div>';
