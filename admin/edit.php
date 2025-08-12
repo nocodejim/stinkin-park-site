@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 session_start();
 
+require_once __DIR__ . '/../config/app.php';
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/Song.php';
 
@@ -400,7 +401,7 @@ foreach ($tags as $tag) {
             <div class="button-group">
                 <button type="submit" class="btn btn-primary">Save Changes</button>
                 <a href="manage.php" class="btn btn-secondary">Cancel</a>
-                <a href="/audio/<?= htmlspecialchars($songData['filename']) ?>" 
+                <a href="<?= BASE_URL ?>/audio/<?= htmlspecialchars($songData['filename']) ?>"
                    class="btn btn-secondary" 
                    target="_blank">▶ Preview</a>
             </div>

@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 session_start();
 
+require_once __DIR__ . '/../config/app.php';
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/Station.php';
 
@@ -408,7 +409,7 @@ $songCount = count($songs);
 
                 <div class="button-group">
                     <button type="submit" class="btn btn-primary">Save Changes</button>
-                    <a href="/stations/<?= htmlspecialchars($stationData['slug']) ?>" 
+                    <a href="<?= BASE_URL ?>/stations/<?= htmlspecialchars($stationData['slug']) ?>"
                        class="btn btn-success" target="_blank">View Station</a>
                     <a href="stations.php" class="btn btn-secondary">Back to Stations</a>
                 </div>
