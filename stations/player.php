@@ -79,51 +79,6 @@ $logger->info("Initial songs loaded", ['count' => $songCount], 'PLAYER');
             padding: 20px;
         }
         
-        /* Debug Console */
-        .debug-console {
-            position: fixed;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            max-height: 200px;
-            background: rgba(0, 0, 0, 0.9);
-            border-top: 2px solid #667eea;
-            overflow-y: auto;
-            font-family: 'Courier New', monospace;
-            font-size: 11px;
-            z-index: 10000;
-            transition: all 0.3s;
-        }
-        
-        .debug-console.collapsed {
-            max-height: 30px;
-        }
-        
-        .debug-header {
-            background: #667eea;
-            padding: 5px 10px;
-            cursor: pointer;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        
-        .debug-content {
-            padding: 10px;
-            line-height: 1.4;
-        }
-        
-        .debug-log {
-            margin: 2px 0;
-            padding: 2px 5px;
-            border-left: 3px solid #444;
-        }
-        
-        .debug-log.info { border-color: #2196F3; }
-        .debug-log.success { border-color: #4CAF50; }
-        .debug-log.warning { border-color: #FF9800; }
-        .debug-log.error { border-color: #F44336; }
-        
         /* Background Media */
         .background-media {
             position: fixed;
@@ -180,7 +135,6 @@ $logger->info("Initial songs loaded", ['count' => $songCount], 'PLAYER');
             box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
             border: 1px solid rgba(255, 255, 255, 0.1);
             margin-top: 60px;
-            margin-bottom: 250px; /* Space for debug console */
         }
         
         .station-header {
@@ -452,7 +406,7 @@ $logger->info("Initial songs loaded", ['count' => $songCount], 'PLAYER');
             <div class="song-artist">Stinkin' Park</div>
         </div>
 
-        <!-- HTML5 Audio Element (visible for debugging) -->
+        <!-- HTML5 Audio Element -->
         <audio id="audio-player" controls preload="metadata"></audio>
 
         <div class="controls">
@@ -490,12 +444,13 @@ $logger->info("Initial songs loaded", ['count' => $songCount], 'PLAYER');
     </div>
 
     <script>
+        // Define BASE_URL first
         const BASE_URL = '<?= BASE_URL ?>';
-
+        
         class StationPlayer {
             constructor() {
                 this.audio = document.getElementById('audio-player');
-                this.stationSlug = '<?= $slug ?>';
+                this.stationSlug = '<?= htmlspecialchars($slug, ENT_QUOTES, 'UTF-8') ?>';
                 this.playlist = [];
                 this.currentIndex = 0;
                 
@@ -504,6 +459,8 @@ $logger->info("Initial songs loaded", ['count' => $songCount], 'PLAYER');
                 this.prevBtn = document.getElementById('prev-btn');
                 this.nextBtn = document.getElementById('next-btn');
                 this.shuffleBtn = document.getElementById('shuffle-btn');
+                
+                console.log('StationPlayer initialized for station:', this.stationSlug);
                 
                 this.initializeControls();
                 this.loadStation();
@@ -523,7 +480,10 @@ $logger->info("Initial songs loaded", ['count' => $songCount], 'PLAYER');
                 // Play/Pause button
                 this.playBtn.addEventListener('click', () => {
                     if (this.audio.paused) {
-                        this.audio.play();
+                        this.audio.play().catch(e => {
+                            console.error('Play failed:', e);
+                            this.showStatus('Playback failed', 'error');
+                        });
                     } else {
                         this.audio.pause();
                     }
@@ -562,28 +522,24 @@ $logger->info("Initial songs loaded", ['count' => $songCount], 'PLAYER');
             }
             
             async loadStation() {
-                console.log('PLAYER: Starting station load for slug:', this.stationSlug);
+                console.log('Loading station:', this.stationSlug);
                 try {
                     this.showStatus('Loading station...', 'loading');
                     
-                    console.log('PLAYER: Fetching data from API...');
-                    const response = await fetch(`${BASE_URL}/api/station.php?slug=${this.stationSlug}`);
-                    console.log('PLAYER: API response received:', response);
+                    const apiUrl = `${BASE_URL}/api/station.php?slug=${encodeURIComponent(this.stationSlug)}`;
+                    console.log('Fetching from:', apiUrl);
+                    
+                    const response = await fetch(apiUrl);
+                    console.log('API response status:', response.status);
 
                     if (!response.ok) {
                         const errorText = await response.text();
-                        console.error('PLAYER: API response not OK.', response.status, errorText);
-                        throw new Error(`HTTP error! status: ${response.status}, body: ${errorText}`);
+                        console.error('API response not OK:', response.status, errorText);
+                        throw new Error(`HTTP error! status: ${response.status}`);
                     }
                     
                     const data = await response.json();
-                    console.log('PLAYER: Parsed JSON data:', data);
-
-                    if (data.debug) {
-                        console.log('--- BEGIN BACKEND DEBUG ---');
-                        data.debug.forEach(msg => console.log(msg));
-                        console.log('--- END BACKEND DEBUG ---');
-                    }
+                    console.log('Station data received:', data);
                     
                     if (!data.songs || data.songs.length === 0) {
                         this.showStatus('No songs found for this station', 'error');
@@ -593,12 +549,13 @@ $logger->info("Initial songs loaded", ['count' => $songCount], 'PLAYER');
                     }
                     
                     this.playlist = data.songs;
+                    console.log('Loaded', this.playlist.length, 'songs');
+                    
                     this.shufflePlaylist();
                     this.renderPlaylist();
                     
                     // Load first song
                     this.loadSong(0);
-                    console.log('PLAYER: First song loaded.');
                     
                     // Enable controls
                     this.playBtn.disabled = false;
@@ -614,7 +571,7 @@ $logger->info("Initial songs loaded", ['count' => $songCount], 'PLAYER');
                     }, 500);
                     
                 } catch (error) {
-                    console.error('PLAYER: Failed to load station. Full error object:', error);
+                    console.error('Failed to load station:', error);
                     this.showStatus('Failed to load station: ' + error.message, 'error');
                     document.getElementById('playlist-content').innerHTML = 
                         '<div class="loading">Failed to load playlist</div>';
@@ -627,10 +584,7 @@ $logger->info("Initial songs loaded", ['count' => $songCount], 'PLAYER');
                     const j = Math.floor(Math.random() * (i + 1));
                     [this.playlist[i], this.playlist[j]] = [this.playlist[j], this.playlist[i]];
                 }
-                this.renderPlaylist();
-                if (this.playlist.length > 0) {
-                    this.loadSong(0);
-                }
+                console.log('Playlist shuffled');
             }
             
             renderPlaylist() {
@@ -676,3 +630,51 @@ $logger->info("Initial songs loaded", ['count' => $songCount], 'PLAYER');
                 // Update UI
                 document.getElementById('song-title').textContent = song.title;
                 
+                // Update playlist active state
+                document.querySelectorAll('.playlist-item').forEach((item, i) => {
+                    item.classList.toggle('active', i === index);
+                });
+                
+                console.log('Song loaded:', song.title);
+            }
+            
+            playNext() {
+                if (this.playlist.length === 0) return;
+                
+                this.currentIndex = (this.currentIndex + 1) % this.playlist.length;
+                this.loadSong(this.currentIndex);
+                
+                if (!this.audio.paused) {
+                    this.audio.play();
+                }
+            }
+            
+            playPrevious() {
+                if (this.playlist.length === 0) return;
+                
+                this.currentIndex = this.currentIndex === 0 ? 
+                    this.playlist.length - 1 : 
+                    this.currentIndex - 1;
+                    
+                this.loadSong(this.currentIndex);
+                
+                if (!this.audio.paused) {
+                    this.audio.play();
+                }
+            }
+            
+            escapeHtml(text) {
+                const div = document.createElement('div');
+                div.textContent = text;
+                return div.innerHTML;
+            }
+        }
+        
+        // Initialize player when DOM is ready
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log('DOM loaded, initializing StationPlayer...');
+            window.player = new StationPlayer();
+        });
+    </script>
+</body>
+</html>
