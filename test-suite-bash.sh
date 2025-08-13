@@ -4,7 +4,7 @@
 # This script tests all major components and logs results
 
 # Configuration
-BASE_URL="http://localhost/radio"  # Adjust this to match your setup
+BASE_URL="https://buckeye90.com/radio"  # Adjust this to match your setup
 LOG_FILE="test_results_$(date +%Y%m%d_%H%M%S).log"
 VERBOSE=true
 
